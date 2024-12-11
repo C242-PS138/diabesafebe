@@ -153,17 +153,24 @@ app.put('/profile/update/:userId', async (req, res) => {
 
 // Prediction
 app.post('/prediction', async (req, res) => {
-    const { height, weight, glucose, bloodPressure, age } = req.body;
+    const { height, weight, glucose, bloodPressure, age, predictionResult } = req.body;
+
+    if (!height || !weight || !glucose || !bloodPressure || !age || !predictionResult) {
+        return res.status(400).json({ message: 'Missing required fields' });
+    }
+
+    const bmi = weight / ((height / 100) ** 2);
 
     try {
         const predictionDoc = {
             height,
             weight,
+            bmi,
             glucose,
             bloodPressure,
             age,
-            result: "Pending",
-            createdAt: admin.firestore.FieldValue.serverTimestamp()
+            predictionResult,
+            timestamp: admin.firestore.FieldValue.serverTimestamp()
         };
 
         const newPrediction = await db.collection('predictions').add(predictionDoc);
@@ -227,5 +234,5 @@ app.get('/news', async (req, res) => {
     }
 });
 
-const PORT = process.env.PORT || 5000;
+const PORT = process.env.PORT || 8080;
 app.listen(PORT, () => console.log(`Server running on port ${PORT}`));
