@@ -4,7 +4,6 @@ const dotenv = require('dotenv');
 const cors = require('cors');
 const jwt = require('jsonwebtoken');
 const serviceAccount = require('./firebase-service-account.json');
-const bcrypt = require('bcrypt');
 const axios = require('axios');
 
 dotenv.config();
@@ -25,8 +24,6 @@ const SECRET_KEY = "alif1211";
 // Helper Functions
 const generateAccessToken = (userId) => jwt.sign({ userId }, SECRET_KEY, { expiresIn: '1h' });
 const generateRefreshToken = (userId) => jwt.sign({ userId }, SECRET_KEY, { expiresIn: '7d' });
-
-// Routes
 
 // Register
 app.post('/register', async (req, res) => {
@@ -62,6 +59,8 @@ app.post('/register', async (req, res) => {
     }
 });
 
+
+
 // Login
 app.post('/login', async (req, res) => {
     const { email, password } = req.body;
@@ -73,8 +72,7 @@ app.post('/login', async (req, res) => {
         const userDoc = await db.collection('users').doc(user.uid).get();
         const userData = userDoc.data();
 
-        const passwordMatch = await bcrypt.compare(password, userData.password);
-        if (!passwordMatch) {
+        if (userData.password !== password) {
             return res.status(404).json({ message: 'Invalid email or password' });
         }
 
@@ -94,6 +92,7 @@ app.post('/login', async (req, res) => {
         res.status(404).json({ message: 'Invalid email or password' });
     }
 });
+
 
 
 // Logout
