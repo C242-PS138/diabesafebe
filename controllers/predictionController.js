@@ -1,27 +1,31 @@
 const admin = require('firebase-admin');
 const db = admin.firestore();
 
+const calculateBMI = (height, weight) => {
+  return (weight / ((height / 100) ** 2)).toFixed(2);
+};1
+
 exports.makePrediction = async (req, res) => {
   const { height, weight, glucose, bloodPressure, age } = req.body;
 
   try {
-    // Validate required fields
-    if ( !height || !weight || !glucose || !bloodPressure || !age) {
+    if (!height || !weight || !glucose || !bloodPressure || !age) {
       return res.status(400).json({ error: "All fields are required." });
     }
 
-    // Use Firebase Firestore for prediction storage
+    const bmi = calculateBMI(height, weight);
+
     const predictionDoc = {
       height,
       weight,
       glucose,
       bloodPressure,
       age,
-      result: "Pending", // Placeholder for prediction result
+      bmi,
+      result: "Pending",
       createdAt: admin.firestore.FieldValue.serverTimestamp(),
     };
 
-    // Save prediction data to Firestore
     const docRef = await db.collection('predictions').add(predictionDoc);
 
     res.status(201).json({ id: docRef.id, ...predictionDoc });

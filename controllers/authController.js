@@ -21,7 +21,6 @@ exports.register = async (req, res) => {
 
 exports.login = async (req, res) => {
   const { email, password } = req.body;
-  // Firebase Authentication does not support server-side login verification.
   res.status(400).json({ message: 'Login must be done using Firebase SDK on the client' });
 };
 

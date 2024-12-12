@@ -1,5 +1,11 @@
 {
   "projects": {
     "default": "diabesafe-id"
+  },
+  "targets": {},
+  "etags": {
+    "diabesafe-id": {
+      "extensionInstances": {}
+    }
   }
 }

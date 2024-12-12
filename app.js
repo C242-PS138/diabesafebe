@@ -4,11 +4,12 @@ const dotenv = require('dotenv');
 const cors = require('cors');
 const jwt = require('jsonwebtoken');
 const serviceAccount = require('./firebase-service-account.json');
+const bcrypt = require('bcrypt');
+const axios = require('axios');
 
 dotenv.config();
 const app = express();
 
-// Initialize Firebase Admin SDK
 admin.initializeApp({
     credential: admin.credential.cert(serviceAccount),
     databaseURL: "https://diabesafe-id-default-rtdb.firebaseio.com/"
@@ -19,7 +20,7 @@ const db = admin.firestore();
 app.use(express.json());
 app.use(cors());
 
-const SECRET_KEY = "your-secret-key"; // Replace with a secure key
+const SECRET_KEY = "alif1211"; 
 
 // Helper Functions
 const generateAccessToken = (userId) => jwt.sign({ userId }, SECRET_KEY, { expiresIn: '1h' });
@@ -66,27 +67,34 @@ app.post('/login', async (req, res) => {
     const { email, password } = req.body;
 
     try {
-        const user = await admin.auth().getUserByEmail(email);
+        const userCredential = await admin.auth().getUserByEmail(email);
+        const user = userCredential;
 
-        const userRecord = await admin.auth().getUserByEmail(email);
-        const validPassword = password === userRecord.passwordHash; 
+        const userDoc = await db.collection('users').doc(user.uid).get();
+        const userData = userDoc.data();
 
-        if (!validPassword) {
-            return res.status(400).json({ message: 'Invalid email or password' });
+        const passwordMatch = await bcrypt.compare(password, userData.password);
+        if (!passwordMatch) {
+            return res.status(404).json({ message: 'Invalid email or password' });
         }
 
         const accessToken = generateAccessToken(user.uid);
         const refreshToken = generateRefreshToken(user.uid);
 
-        res.json({
+        res.status(200).json({
             message: 'Logged in successfully',
             accessToken,
-            refreshToken
+            refreshToken,
+            data: {
+                uid: user.uid,
+                email: user.email,
+            }
         });
     } catch (error) {
         res.status(404).json({ message: 'Invalid email or password' });
     }
 });
+
 
 // Logout
 app.post('/logout', (req, res) => {
@@ -132,7 +140,7 @@ app.get('/profile/:userId', async (req, res) => {
 });
 
 // Update User Profile
-app.put('/profile/update/:userId', async (req, res) => {
+app.put('/profile/:userId/update', async (req, res) => {
     const { userId } = req.params;
     const { name, email } = req.body;
 
@@ -221,9 +229,12 @@ app.get('/prediction/history/:id', async (req, res) => {
 
 // News
 app.get('/news', async (req, res) => {
+    const NEWS_API_KEY = process.env.NEWS_API_KEY; 
+    const NEWS_API_URL = `https://newsapi.org/v2/top-headlines?country=us&apiKey=${NEWS_API_KEY}`;
+
     try {
-        const snapshot = await db.collection('news').get();
-        const news = snapshot.docs.map(doc => doc.data());
+        const response = await axios.get(NEWS_API_URL);
+        const news = response.data.articles;
 
         res.json({
             message: 'News fetched successfully',
@@ -234,5 +245,5 @@ app.get('/news', async (req, res) => {
     }
 });
 
-const PORT = process.env.PORT || 8080;
+const PORT = process.env.PORT || 5000;
 app.listen(PORT, () => console.log(`Server running on port ${PORT}`));
