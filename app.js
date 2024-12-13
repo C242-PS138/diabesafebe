@@ -9,6 +9,7 @@ const axios = require('axios');
 dotenv.config();
 const app = express();
 
+
 admin.initializeApp({
     credential: admin.credential.cert(serviceAccount),
     databaseURL: "https://diabesafe-id-default-rtdb.firebaseio.com/"
@@ -27,9 +28,9 @@ const generateRefreshToken = (userId) => jwt.sign({ userId }, SECRET_KEY, { expi
 
 // Register
 app.post('/register', async (req, res) => {
-    const { name, username, password, confirmPassword, email } = req.body;
+    const { email, password, confirmPassword } = req.body;
 
-    if (!name || !username || !password || !confirmPassword || !email) {
+    if (!email || !password || !confirmPassword) {
         return res.status(400).json({ message: 'Missing required fields' });
     }
     if (password !== confirmPassword) {
@@ -37,22 +38,22 @@ app.post('/register', async (req, res) => {
     }
 
     try {
-        const userRecord = await admin.auth().createUser({
-            email,
-            password,
-            displayName: name
-        });
+        const userDoc = await db.collection('users').where('email', '==', email).get();
 
-        await db.collection('users').doc(userRecord.uid).set({
-            name,
-            username,
+        if (!userDoc.empty) {
+            return res.status(400).json({ message: 'Email already exists' });
+        }
+
+        const hashedPassword = jwt.sign(password, SECRET_KEY);
+        const newUser = await db.collection('users').add({
             email,
-            userId: userRecord.uid,
+            password: hashedPassword,
+            createdAt: admin.firestore.FieldValue.serverTimestamp()
         });
 
         res.status(201).json({
             message: 'User registered successfully',
-            userId: userRecord.uid
+            userId: newUser.id
         });
     } catch (error) {
         res.status(500).json({ message: error.message });
@@ -65,31 +66,39 @@ app.post('/register', async (req, res) => {
 app.post('/login', async (req, res) => {
     const { email, password } = req.body;
 
+    if (!email || !password) {
+        return res.status(400).json({ message: 'Missing required fields' });
+    }
+
     try {
-        const userCredential = await admin.auth().getUserByEmail(email);
-        const user = userCredential;
+        const userSnapshot = await db.collection('users').where('email', '==', email).get();
 
-        const userDoc = await db.collection('users').doc(user.uid).get();
-        const userData = userDoc.data();
-
-        if (userData.password !== password) {
+        if (userSnapshot.empty) {
             return res.status(404).json({ message: 'Invalid email or password' });
         }
 
-        const accessToken = generateAccessToken(user.uid);
-        const refreshToken = generateRefreshToken(user.uid);
+        const userDoc = userSnapshot.docs[0];
+        const userData = userDoc.data();
+
+        const isPasswordValid = jwt.verify(password, SECRET_KEY) === userData.password;
+        if (!isPasswordValid) {
+            return res.status(404).json({ message: 'Invalid email or password' });
+        }
+
+        const accessToken = generateAccessToken(userDoc.id);
+        const refreshToken = generateRefreshToken(userDoc.id);
 
         res.status(200).json({
             message: 'Logged in successfully',
             accessToken,
             refreshToken,
             data: {
-                uid: user.uid,
-                email: user.email,
+                uid: userDoc.id,
+                email: userData.email
             }
         });
     } catch (error) {
-        res.status(404).json({ message: 'Invalid email or password' });
+        res.status(500).json({ message: error.message });
     }
 });
 
@@ -242,6 +251,23 @@ app.get('/news', async (req, res) => {
     } catch (error) {
         res.status(500).json({ message: error.message });
     }
+});
+
+//Language
+app.post('/language', (req, res) => {
+    const { language } = req.body;
+
+    if (!language) {
+        return res.status(400).json({ message: 'Language is required' });
+    }
+
+    if (language !== 'english' && language !== 'indonesia') {
+        return res.status(400).json({ message: 'Invalid language' });
+    }
+
+    res.json({
+        message: `Language changed to ${language}`
+    });
 });
 
 const PORT = process.env.PORT || 5000;
